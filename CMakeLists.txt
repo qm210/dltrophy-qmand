@@ -23,14 +23,18 @@ target_include_directories(${PROJECT_NAME} PRIVATE
         thirdparty/glad/include
 )
 
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME} PRIVATE
         nuklear::nuklear
         glfw
         OpenGL::GL
 )
 
-if(UNIX)
-    target_link_libraries(${PROJECT_NAME} pthread dl m)
+if (WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ws2_32)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE _WIN32)
+endif()
+if (UNIX)
+    target_link_libraries(${PROJECT_NAME} PRIVATE pthread dl m)
 endif()
 
 target_link_options(${PROJECT_NAME} PRIVATE
