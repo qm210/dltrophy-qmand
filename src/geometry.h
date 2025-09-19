@@ -13,6 +13,10 @@ struct Size {
         return width > 0 && height > 0;
     }
 
+    int partial_height(float factor) {
+        return static_cast<int>(factor * static_cast<int>(height));
+    }
+
     [[nodiscard]]
     int area() const { return width * height; }
 };

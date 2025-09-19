@@ -11,7 +11,7 @@ struct Config {
 public:
     explicit Config(int argc, char* argv[]);
 
-    std::string wledHost = "qm.local";
+    std::string wledHost = "192.168.178.156";
     uint16_t wledPort = 21234;
 
     uint8_t brightness = 130;
