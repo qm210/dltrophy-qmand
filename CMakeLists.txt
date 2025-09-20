@@ -7,6 +7,7 @@ include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake)
 find_package(nuklear REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(mdns REQUIRED)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
@@ -27,6 +28,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         nuklear::nuklear
         glfw
         OpenGL::GL
+        mdns::mdns
 )
 
 if (WIN32)

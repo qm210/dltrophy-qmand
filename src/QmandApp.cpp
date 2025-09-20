@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <map>
 #include "QmandApp.h"
+#include "Packet.h"
 
 
 QmandApp::QmandApp(Config config)
@@ -78,7 +79,7 @@ void QmandApp::run() {
 
             nk_layout_row_dynamic(ctx, size.partial_height(0.12), 1);
             if (sender->isClosed()) {
-                nk_label(ctx, sender->error_message(), NK_TEXT_CENTERED);
+                nk_label(ctx, sender->status(), NK_TEXT_CENTERED);
             } else {
                 nk_label(ctx, "unusually quiet for a Friday night...", NK_TEXT_CENTERED);
             }
@@ -100,6 +101,8 @@ void QmandApp::run() {
         nk_glfw3_render(glfw, NK_ANTI_ALIASING_ON, MAX_VERTEX_MEMORY, MAX_ELEMENT_MEMORY);
 
         glfwSwapBuffers(window);
+
+        sender->process();
     }
 
     nk_glfw3_shutdown(glfw);
@@ -110,85 +113,6 @@ void QmandApp::run() {
 void QmandApp::handleWindowError(int error, const char* description) {
     std::cerr << "Error: " << description << " (" << error << ")" << std::endl;
 }
-
-enum Reason {
-    InitialBoot = 0,
-    DirectChange = 1,
-    ButtonPress = 2,
-    UpdateByOtherNotification = 3,
-    NightlightActivated = 4,
-    Other = 5,
-    EffectChanged = 6,
-    HueLightChanged = 7,
-    PresetCycleActive = 8,
-    UpdatedViaBlynk = 9,
-};
-
-const int MustBeZero = 0;
-
-// This implements https://kno.wled.ge/interfaces/udp-notifier/
-struct OfficialWledPacket {
-    uint8_t purpose = MustBeZero;
-    uint8_t reason = DirectChange;
-    uint8_t brightness;
-    uint8_t primaryColor[3];
-    uint8_t nightlightActive;
-    uint8_t nightlightDelayMins;
-    uint8_t effectIndex;
-    uint8_t effectSpeed;
-    // from here Notifier Version 1
-    uint8_t primaryWhiteValue;
-    uint8_t version = 5;
-    // from here Notifier Version 2
-    uint8_t secondaryColor[3];
-    uint8_t secondaryWhiteValue;
-    // from here Notifier Version 3
-    uint8_t effectIntensity;
-    // from here Notifier Version 4
-    uint8_t transitionDurationUpper;
-    uint8_t transitionDurationLower;
-    // from here Notifier Version 5
-    uint8_t effectPalette;
-    uint8_t _remainderZeroes[4];
-};
-
-struct CustomWledPacket {
-    uint8_t purpose = MustBeZero;
-    uint8_t reason = Other;
-    uint8_t brightness;
-    uint8_t resetTime;
-    uint8_t _unusedG;
-    uint8_t _unusedB;
-    uint8_t _unusedNight;
-    uint8_t _unusedNightMin;
-    uint8_t effectIndex;
-    uint8_t effectSpeed;
-    uint8_t _unusedW;
-    uint8_t version = 210;
-};
-
-std::map<int, std::string> byteDescriptionOfficial = {
-        {0, "Purpose Byte"},
-        {1, "Packet Reason"},
-        {2, "Master Brightness"},
-        {3, "Primary RED"},
-        {4, "Primary GREEN"},
-        {5, "Primary BLUE"},
-        {6, "Nightlight running?"},
-        {7, "Nightlight Delay in Minutes"},
-        {8, "Effect Index"},
-        {9, "Effect Speed"},
-        {10, "Primary WHITE"},
-        {11, "Version Byte"},
-        {12, "Secondary RED"},
-        {13, "Secondary GREEN"},
-        {14, "Secondary BLUE"},
-        {15, "Secondary WHITE"},
-        {16, "Effect Intensity"},
-        {17, "Transition Delay (Upper)"},
-        {18, "Transition Delay (Lower)"},
-        {19, "Effect Palette"},
-};
 
 // previously called sendPacket(), but why should it do so??
 void QmandApp::qmand(std::optional<uint8_t> brightness) {
@@ -214,18 +138,21 @@ void QmandApp::qmand(std::optional<uint8_t> brightness) {
     }
      */
 
-    CustomWledPacket qmd{
+    DeadlineWledPacket qmd{
         .purpose = MustBeZero,
         .reason = Other,
         .brightness = brightness.value_or(config.brightness),
         .resetTime = 1,
         .version = 210,
     };
-    const char* msg = reinterpret_cast<const char*>(&qmd);
     try {
-        int sent = sender->send(msg, sizeof(qmd));
-        std::cout << "[DEBUG] Sent bytes: " << sent << std::endl;
+        sender->update(config);
+        int sent = sender->send(qmd);
+        std::cout << "[DEBUG] Sent " << sent << " bytes to " << sender->host << ":" << sender->port << std::endl;
+        if (sent == 0) {
+            std::cout << "[DEBUG] -- UDP Sender Queue Size: " << sender->queueSize() << std::endl;
+        }
     } catch (const std::exception& e) {
-        std::cerr << "Exception during UDP Sending: " << e.what() << std::endl;
+        std::cerr << "[ERROR] when sending UDP: " << e.what() << std::endl;
     }
 }
