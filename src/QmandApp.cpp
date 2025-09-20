@@ -58,6 +58,8 @@ void QmandApp::run() {
 
         if (nk_begin(ctx, "", rect, NK_WINDOW_BACKGROUND | NK_WINDOW_NO_SCROLLBAR)) {
 
+            nk_layout_row_dynamic(ctx, size.partial_height(0.01), 1);
+
             nk_layout_row_dynamic(ctx, size.partial_height(0.1), 2);
             nk_label(ctx, "WLED host (IP):", NK_TEXT_LEFT);
             nk_label(ctx, "UDP port (default 21234):", NK_TEXT_LEFT);
@@ -69,7 +71,8 @@ void QmandApp::run() {
             nk_layout_row_dynamic(ctx, size.partial_height(0.15), 1);
             byte_slider(ctx, "Brightness:", config.brightness);
 
-//            nk_layout_row_dynamic(ctx, size.partial_height(0.15), 2);
+            nk_layout_row_dynamic(ctx, size.partial_height(0.05), 2);
+
 //            nk_label(ctx, "FX ID:", NK_TEXT_LEFT);
 //            uint_edit(ctx, config.fxIndex);
 
