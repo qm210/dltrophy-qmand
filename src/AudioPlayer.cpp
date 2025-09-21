@@ -111,7 +111,7 @@ void AudioPlayer::onAudioData(ma_device* pDevice, void* pOutput, const void* pIn
 void AudioPlayer::processBuffer(ma_device* pDevice, void* pOutput, ma_uint32 frameCount)
 {
     ma_uint64 framesRead;
-    ma_result result = ma_decoder_read_pcm_frames(&decoder, pOutput, frameCount, &framesRead);
+    ma_result result = ma_data_source_read_pcm_frames(&decoder, pOutput, frameCount, &framesRead);
     if (result != MA_SUCCESS) {
         deviceError = std::format("Error Reading Frames. Sorry for so little details, just result: {}",
                                   static_cast<int>(result));
