@@ -10,6 +10,8 @@
 #include "Config.h"
 #include "geometry.h"
 #include "UdpSender.h"
+#include "AudioPlayer.h"
+#include "TimingStuff.h"
 
 struct nk_glfw;
 struct nk_context;
@@ -21,7 +23,8 @@ public:
     ~QmandApp();
 
     void run();
-    void qmand(std::optional<uint8_t> brightness = std::nullopt);
+    void qmand(bool theGoodOne = true);
+    int send(DeadlineWledPacket qmd);
 
 private:
     Config config;
@@ -33,6 +36,13 @@ private:
     Size size;
 
     UdpSender* sender;
+    AudioPlayer* audio;
+    TimingStuff* timer;
+    std::chrono::milliseconds latencyCorrection{0};
+
+    void prepareQmands();
+    DeadlineWledPacket preparedQmand;
+    DeadlineWledPacket preparedDark;
 };
 
 #endif //DLTROPHY_QMAND_QMANDAPP_H

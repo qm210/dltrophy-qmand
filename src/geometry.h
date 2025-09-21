@@ -13,8 +13,9 @@ struct Size {
         return width > 0 && height > 0;
     }
 
-    int partial_height(float factor) const {
-        return static_cast<int>(factor * static_cast<int>(height));
+    [[nodiscard]]
+    float partial_height(float factor) const {
+        return factor * static_cast<float>(height);
     }
 
     [[nodiscard]]

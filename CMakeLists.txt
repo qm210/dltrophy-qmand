@@ -7,12 +7,14 @@ include(${CMAKE_BINARY_DIR}/conan_toolchain.cmake)
 find_package(nuklear REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(miniaudio CONFIG REQUIRED)
 find_package(mdns REQUIRED)
 
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/QmandApp.cpp
         src/Config.cpp
+        src/AudioPlayer.cpp
 )
 
 target_sources(${PROJECT_NAME} PRIVATE
@@ -28,6 +30,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         nuklear::nuklear
         glfw
         OpenGL::GL
+        miniaudio::miniaudio
         mdns::mdns
 )
 

@@ -6,7 +6,6 @@
 #include <string>
 #include <stdexcept>
 #include <iostream>
-#include <iomanip>
 #include <map>
 #include "QmandApp.h"
 #include "Packet.h"
@@ -24,20 +23,25 @@ QmandApp::QmandApp(Config config)
     ctx = nk_glfw3_init(glfw, window, NK_GLFW3_INSTALL_CALLBACKS);
 
     sender = new UdpSender(config);
+    audio = new AudioPlayer(config);
+    timer = new TimingStuff();
 }
 
 QmandApp::~QmandApp() {
     glfwTerminate();
     delete glfw;
     delete sender;
+    delete audio;
+    delete timer;
 }
 
 void QmandApp::initializeWindow() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     glfwSetErrorCallback(handleWindowError);
-    window = glfwCreateWindow(480, 180, "Trophy Qmander", NULL, NULL);
+    window = glfwCreateWindow(500, 360, "Trophy Qmander", NULL, NULL);
     if (!window) {
         glfwTerminate();
         throw std::runtime_error("Failed to open GLFW window");
@@ -47,49 +51,122 @@ void QmandApp::initializeWindow() {
 }
 
 void QmandApp::run() {
-    // cf. https://github.com/Immediate-Mode-UI/Nuklear/blob/master/demo/glfw_opengl3/nuklear_glfw_gl3.h
     struct nk_font_atlas *atlas;
     nk_glfw3_font_stash_begin(glfw, &atlas);
     nk_glfw3_font_stash_end(glfw);
+    auto unit = ctx->style.font->height / 2;
+    ctx->style.window.padding = nk_vec2(unit, unit);
+    ctx->style.slider.show_buttons = 1;
+    auto nk_window_flags = NK_WINDOW_BACKGROUND | NK_WINDOW_NO_SCROLLBAR;
+    char text[1024];
+
+    timer->reset();
 
     while (!glfwWindowShouldClose(window)) {
+        timer->process();
+        sender->process();
         glfwPollEvents();
+
         nk_glfw3_new_frame(glfw);
         auto rect = nk_rect(0, 0, size.width, size.height);
+        int rowHeight = 0;
+        bool qmandChanged = false;
+        bool hostChanged = false;
 
-        if (nk_begin(ctx, "", rect, NK_WINDOW_BACKGROUND | NK_WINDOW_NO_SCROLLBAR)) {
+        if (nk_begin(ctx, "", rect, nk_window_flags)) {
 
-            nk_layout_row_dynamic(ctx, size.partial_height(0.01), 1);
-
-            nk_layout_row_dynamic(ctx, size.partial_height(0.1), 2);
+            rowHeight = 3 * unit;
+            nk_layout_row_dynamic(ctx, rowHeight, 2);
             nk_label(ctx, "WLED host (IP):", NK_TEXT_LEFT);
             nk_label(ctx, "UDP port (default 21234):", NK_TEXT_LEFT);
 
-            nk_layout_row_dynamic(ctx, size.partial_height(0.15), 2);
-            string_edit(ctx, config.wledHost, 32);
-            uint_edit(ctx, config.wledPort);
+            rowHeight = 4 * unit;
+            nk_layout_row_dynamic(ctx, rowHeight, 2);
+            hostChanged |=
+                    string_edit(ctx, config.wledHost, 32);
+            hostChanged |=
+                    int_edit(ctx, config.wledPort);
 
-            nk_layout_row_dynamic(ctx, size.partial_height(0.15), 1);
-            byte_slider(ctx, "Brightness:", config.brightness);
-
-            nk_layout_row_dynamic(ctx, size.partial_height(0.05), 2);
-
-//            nk_label(ctx, "FX ID:", NK_TEXT_LEFT);
-//            uint_edit(ctx, config.fxIndex);
-
-            nk_layout_row_dynamic(ctx, size.partial_height(0.12), 1);
+            rowHeight = 3 * unit;
+            nk_layout_row_dynamic(ctx, rowHeight, 1);
             if (sender->isClosed()) {
                 nk_label(ctx, sender->status(), NK_TEXT_CENTERED);
             } else {
                 nk_label(ctx, "unusually quiet for a Friday night...", NK_TEXT_CENTERED);
             }
 
-            nk_layout_row_dynamic(ctx, size.partial_height(0.20), 2);
+            rowHeight = 5 * unit;
+            sprintf(text, "Brightness: %d", config.brightness);
+            qmandChanged |=
+                    parameterWithCheckboxRow(ctx, rowHeight, text,
+                                             config.applyBrightness,
+                                             config.brightness);
+            sprintf(text, "FX Index: %d", config.fxIndex);
+            qmandChanged |=
+                    parameterWithCheckboxRow(ctx, rowHeight, text,
+                                             config.applyFxIndex,
+                                             config.fxIndex);
+            sprintf(text, "FX Speed: %d", config.fxSpeed);
+            qmandChanged |=
+                    parameterWithCheckboxRow(ctx, rowHeight, text,
+                                             config.applyFxSpeed,
+                                             config.fxSpeed);
+            sprintf(text, "All-White: %d", config.whiteValue);
+            qmandChanged |=
+                    parameterWithCheckboxRow(ctx, rowHeight, text,
+                                             config.applyWhiteValue,
+                                             config.whiteValue);
+
+            rowHeight = 5 * unit;
+            nk_layout_row_dynamic(ctx, rowHeight, 2);
             if (nk_button_label(ctx, "dark.")) {
-                qmand(0);
+                qmand(false);
             }
-            if (nk_button_label(ctx, "QMAND!!")) {
-                qmand();
+            if (nk_button_label(ctx, "!QMAND!")) {
+                qmand(true);
+            }
+
+            rowHeight = unit;
+            nk_layout_row_dynamic(ctx, rowHeight, 2);
+
+            rowHeight = 2 * unit;
+            nk_layout_row_dynamic(ctx, rowHeight, 1);
+            nk_label(ctx, audio->errorMessage(), NK_TEXT_LEFT);
+
+            rowHeight = 5 * unit;
+            nk_layout_row_begin(ctx, NK_DYNAMIC, rowHeight, 3);
+            nk_layout_row_push(ctx, 0.6f);
+            string_edit(ctx, config.audioFile, 256);
+            nk_layout_row_push(ctx, 0.15f);
+            nk_label(ctx, audio->playingLabel(), NK_TEXT_CENTERED);
+            nk_layout_row_push(ctx, 0.25f);
+            if (audio->isPlaying()) {
+                if (nk_button_label(ctx, "Stop Track")) {
+                    audio->stopPlayback();
+                }
+            } else if (audio->hasLoaded(config.audioFile)) {
+                if (nk_button_label(ctx, "Play Track")) {
+                    audio->startPlayback(config.audioLoop);
+                }
+            } else {
+                if (nk_button_label(ctx, "Load Track")) {
+                    audio->load(config.audioFile);
+                }
+            }
+            nk_layout_row_end(ctx);
+
+            rowHeight = 5 * unit;
+            nk_layout_row_begin(ctx, NK_DYNAMIC, rowHeight, 3);
+            nk_layout_row_push(ctx, 0.5f);
+            sprintf(text, "Autoplay %s", config.autoplay ? "on QMAND" : "off");
+            checkbox(ctx, text, config.autoplay);
+            if (config.autoplay) {
+                if (nk_widget_is_hovered(ctx)) {
+                    nk_tooltip(ctx, "Wait for playing after sending the qmand (to account for latency)");
+                }
+                nk_layout_row_push(ctx, 0.25f);
+                nk_label(ctx, "with delay [ms] ", NK_TEXT_RIGHT);
+                int_edit(ctx, config.autoplayDelayMs, NK_EDIT_READ_ONLY);
             }
         }
         nk_end(ctx);
@@ -102,7 +179,15 @@ void QmandApp::run() {
 
         glfwSwapBuffers(window);
 
-        sender->process();
+        if (qmandChanged) {
+            prepareQmands();
+        }
+        if (hostChanged) {
+            timer->startMeasurement("updating");
+            sender->update(config);
+            auto timing = timer->finishMeasurement("updating");
+            std::cout << "[bla] updating has cost us: " << timing << std::endl;
+        }
     }
 
     nk_glfw3_shutdown(glfw);
@@ -114,45 +199,59 @@ void QmandApp::handleWindowError(int error, const char* description) {
     std::cerr << "Error: " << description << " (" << error << ")" << std::endl;
 }
 
-// previously called sendPacket(), but why should it do so??
-void QmandApp::qmand(std::optional<uint8_t> brightness) {
-    // for now, we can just go with version 0
-    // (basic support since WLED 0.3, even though the WLED has WLED 0.16)
-
-    /*
-    OfficialWledPacket qmd{
-        .reason = DirectChange,
-        .brightness = brightness.value_or(config.brightness),
-//        .effectIndex = config.fxIndex,
-    };
-    std::cout << "[DEBUG] Updating Sender to " << config.wledHost << ":" << config.wledPort << std::endl;
-    sender->update(config);
-    std::cout << "[DEBUG] Trying to send message:" << std::endl;
-    const char* msg = reinterpret_cast<const char*>(&qmd);
-    for (int i = 0; i < sizeof(OfficialWledPacket); i++) {
-        unsigned int byte = static_cast<unsigned int>(static_cast<unsigned char>(msg[i]));
-        std::cout << "         " << std::setw(2) << i << ": ";
-        auto it = byteDescriptionOfficial.find(i);
-        auto name = it != byteDescriptionOfficial.end() ? it->second : "--unused--";
-        std::cout << name << " = " << byte << std::endl;
-    }
-     */
-
-    DeadlineWledPacket qmd{
-        .purpose = MustBeZero,
-        .reason = Other,
-        .brightness = brightness.value_or(config.brightness),
-        .resetTime = 1,
-        .version = 210,
-    };
+void QmandApp::qmand(bool theGoodOne) {
+    int sent;
     try {
-        sender->update(config);
-        int sent = sender->send(qmd);
-        std::cout << "[DEBUG] Sent " << sent << " bytes to " << sender->host << ":" << sender->port << std::endl;
-        if (sent == 0) {
-            std::cout << "[DEBUG] -- UDP Sender Queue Size: " << sender->queueSize() << std::endl;
-        }
+        sent = send(theGoodOne ? preparedQmand : preparedDark);
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] when sending UDP: " << e.what() << std::endl;
     }
+    if (config.autoplay) {
+        if (!theGoodOne) {
+            audio->stopPlayback();
+            return;
+        }
+        timer->startMeasurement("delay");
+        auto delay = std::chrono::milliseconds(config.autoplayDelayMs) - latencyCorrection;
+        timer->executeIn(delay, [this]() {
+            audio->startPlayback(config.audioLoop);
+            auto delayMs = static_cast<int>(timer->finishMeasurement("delay"));
+            latencyCorrection = std::chrono::milliseconds{delayMs - config.autoplayDelayMs};
+            std::cout << "[INFO] Delayed Action Executed, delay wanted " << config.autoplayDelayMs
+                      << ", took " << delayMs << " ms -> remember correction: " << latencyCorrection.count()
+                      << std::endl;
+            timer->printDebug = true;
+        });
+    }
+    std::cout << "[DEBUG] Sent " << sent << " bytes to " << sender->host << ":" << sender->port << std::endl;
+}
+
+int QmandApp::send(DeadlineWledPacket qmd) {
+    int sent = sender->send(qmd);
+    if (sent == 0) {
+        std::cerr << "[WARNING] -- UDP Sender did not send, Queue Size: " << sender->queueSize() << std::endl;
+    }
+    return sent;
+}
+
+void QmandApp::prepareQmands() {
+    // cache these so sending takes less latency
+    preparedQmand = {
+        .purpose = MustBeZero,
+        .reason = DirectChange,
+        .doReset = 1,
+        .applyBrightness = static_cast<uint8_t>(config.applyBrightness),
+        .brightness = config.brightness,
+        .applyFxIndex = static_cast<uint8_t>(config.applyFxIndex),
+        .fxIndex = config.fxIndex,
+        .applyFxSpeed = static_cast<uint8_t>(config.applyFxSpeed),
+        .fxSpeed = config.fxSpeed,
+        .applyAllWhite = static_cast<uint8_t>(config.applyWhiteValue),
+        .whiteValue = config.whiteValue,
+        .version = 210,
+        .subversion = 0,
+    };
+    // has default copy constructor
+    preparedDark = preparedQmand;
+    preparedDark.brightness = 0;
 }
