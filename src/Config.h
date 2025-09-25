@@ -21,10 +21,8 @@ public:
     uint8_t fxIndex = 210;
     bool applyFxSpeed = false;
     uint8_t fxSpeed = 110;
-    bool applyWhiteValue = false;
-    uint8_t whiteValue = 255;
 
-    std::string audioFile = "../track/synctrophy_v1.wav";
+    std::string audioFile = "../track/synctrophy_v2.wav";
     bool audioLoop = true;
     bool autoplay = true;
     int autoplayDelayMs = 0;

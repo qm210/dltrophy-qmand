@@ -111,11 +111,6 @@ void QmandApp::run() {
                     parameterWithCheckboxRow(ctx, rowHeight, text,
                                              config.applyFxSpeed,
                                              config.fxSpeed);
-            sprintf(text, "All-White: %d", config.whiteValue);
-            qmandChanged |=
-                    parameterWithCheckboxRow(ctx, rowHeight, text,
-                                             config.applyWhiteValue,
-                                             config.whiteValue);
 
             rowHeight = 5 * unit;
             nk_layout_row_dynamic(ctx, rowHeight, 2);
@@ -246,8 +241,6 @@ void QmandApp::prepareQmands() {
         .fxIndex = config.fxIndex,
         .applyFxSpeed = static_cast<uint8_t>(config.applyFxSpeed),
         .fxSpeed = config.fxSpeed,
-        .applyAllWhite = static_cast<uint8_t>(config.applyWhiteValue),
-        .whiteValue = config.whiteValue,
         .version = 210,
         .subversion = 0,
     };

@@ -87,8 +87,8 @@ struct DeadlineWledPacket {
     uint8_t fxIndex;
     uint8_t applyFxSpeed;
     uint8_t fxSpeed;
-    uint8_t applyAllWhite;
-    uint8_t whiteValue;
+    uint8_t unused1 = 0;
+    uint8_t unused2 = 0;
     uint8_t version = 210;
     uint8_t subversion = 0;
 };
@@ -96,17 +96,16 @@ struct DeadlineWledPacket {
 const std::map<int, std::string> byteDescriptionDeadline = {
         {0, "Purpose Byte (must be zero)"},
         {1, "Packet Reason (1 = Direct Change, but ignored afaik)"},
-        {2, "Master Brightness"},
-        {3, "Reset Whole Strip? (if 1)"},
-        {4, "Apply Brightness Value? (if 1)"},
-        {5, "Apply FX Index? (if 1)"},
-        {6, "Apply FX Speed? (if 1)"},
-        {7, "Apply All-White? (if 1)"},
-        {8, "FX Index"},
-        {9, "FX Speed"},
-        {10, "All LEDs to this (\"white\") value (for testing)"},
+        {2, "Flag: Reset Strip?"},
+        {3, "Flag: Apply Master Brightness?"},
+        {4, "Master Brightness"},
+        {5, "Flag: Apply FX Index?"},
+        {6, "FX Index"},
+        {7, "Flag: Apply FX Speed?"},
+        {8, "FX Speed"},
+        // 9 and 10 currently unused
         {11, "Version Byte (must be 210)"},
-        {12, "Deadline SubVersion Byte (just 0 for now)"},
+        {12, "Deadline SubVersion Byte (is just 0 for now)"},
 };
 
 using Packet = std::variant<OfficialWledPacket, DeadlineWledPacket>;
