@@ -111,6 +111,7 @@ void QmandApp::run() {
                     parameterWithCheckboxRow(ctx, rowHeight, text,
                                              config.applyFxSpeed,
                                              config.fxSpeed);
+            nk_layout_row_dynamic(ctx, unit, 1);
 
             rowHeight = 5 * unit;
             nk_layout_row_dynamic(ctx, rowHeight, 2);
@@ -149,6 +150,12 @@ void QmandApp::run() {
                 }
             }
             nk_layout_row_end(ctx);
+
+            nk_layout_row_dynamic(ctx, rowHeight, 1);
+            if (audio->bpm.has_value()) {
+                sprintf(text, "Estimated BPM: %.3f", *audio->bpm);
+                nk_label(ctx, text, NK_TEXT_RIGHT);
+            }
 
             rowHeight = 5 * unit;
             nk_layout_row_begin(ctx, NK_DYNAMIC, rowHeight, 3);

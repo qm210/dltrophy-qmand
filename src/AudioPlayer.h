@@ -36,10 +36,13 @@ public:
     explicit AudioPlayer(const Config& config);
     ~AudioPlayer() { teardown(); }
 
-    void teardown();
+    void teardown(bool withDevice = true);
     void load(const std::string& filepath);
     void startPlayback(bool looping = true);
     void stopPlayback(bool rewind = true);
+
+    void trySomeAnalysis();
+    std::optional<double> bpm = std::nullopt;
 
     [[nodiscard]]
     bool hasLoaded(const std::string& filepath) const {

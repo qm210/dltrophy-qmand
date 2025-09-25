@@ -4,12 +4,15 @@
 
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
+#include "MiniBPM.h"
 #include "AudioPlayer.h"
 
 #include <iostream>
 #include <string>
 #include <format>
 #include <filesystem>
+#include <vector>
+
 namespace fs = std::filesystem;
 
 inline static bool exists(const std::string& path) {
@@ -24,13 +27,20 @@ AudioPlayer::AudioPlayer(const Config& config)
     }
 }
 
-void AudioPlayer::teardown()
+void AudioPlayer::teardown(bool withDevice)
 {
+    // ONLY_DEVEL
+    std::cout << "[AUDIO] Teardown, arg " << withDevice
+              << " -- device initialized? check samplerate " << device.sampleRate << std::endl;
     if (playing) {
         stopPlayback();
     }
-    ma_device_uninit(&device);
+    if (withDevice) {
+        ma_device_uninit(&device);
+    }
     ma_decoder_uninit(&decoder);
+    loadedAudioAbsolutePath = "";
+    lastGivenFilepath = "";
 }
 
 void AudioPlayer::load(const std::string& filepath)
@@ -50,6 +60,8 @@ void AudioPlayer::load(const std::string& filepath)
     }
     lastGivenFilepath = filepath;
     loadedAudioAbsolutePath = absolutePath;
+
+    trySomeAnalysis();
 };
 
 void AudioPlayer::startPlayback(bool shouldLoop)
@@ -119,4 +131,62 @@ void AudioPlayer::processBuffer(ma_device* pDevice, void* pOutput, ma_uint32 fra
         return;
     }
     framesPlayed += framesRead;
+}
+
+void AudioPlayer::trySomeAnalysis()
+{
+    // MiniBPM wants normalized floats, so we need to reconfigure the decoder for any 24bit PCM or whatever else.
+    ma_decoder_config config = ma_decoder_config_init(ma_format_f32, decoder.outputChannels, decoder.outputSampleRate);
+    ma_result result = ma_decoder_init_file(loadedAudioAbsolutePath.c_str(), &config, &decoder);
+    if (result != MA_SUCCESS) {
+        std::cerr << "[AUDIO] Could NOT read PCM frames from " << loadedAudioAbsolutePath << std::endl;
+        teardown(false);
+        return;
+    }
+
+    // assumes the decoder initialized, for now without any checks
+    ma_uint64 framesTotal;
+    result = ma_decoder_get_length_in_pcm_frames(&decoder, &framesTotal);
+    if (result != MA_SUCCESS) {
+        std::cerr << "[AUDIO] Could NOT read PCM frame length from " << loadedAudioAbsolutePath << std::endl;
+        return;
+    }
+    ma_uint32 channels = decoder.outputChannels;
+    ma_format format = decoder.outputFormat;
+    float samplerate = static_cast<float>(decoder.outputSampleRate);
+
+    std::cout << "[AUDIO] Format: " << format
+              << " (Float32 == " << ma_format_f32 << ")"
+              << ", #channels: " << channels
+              << ", #frames: " << framesTotal
+              << ", samplerate " << samplerate << " Hz"
+              << std::endl;
+
+    std::vector<float> samples(framesTotal * channels);
+    ma_uint64 framesRead;
+    result = ma_decoder_read_pcm_frames(&decoder, samples.data(), framesTotal, &framesRead);
+    if (result != MA_SUCCESS) {
+        std::cerr << "[AUDIO] Could NOT read all PCM frames from " << loadedAudioAbsolutePath << std::endl;
+        teardown(false);
+        return;
+    }
+
+    std::vector<float> monoSamples(framesTotal);
+    float weight = 1./channels;
+    for (int s = 0; s < framesTotal; s++) {
+        monoSamples[s] = 0.;
+        for (int ch = 0; ch < channels; ch++) {
+            monoSamples[s] += weight * samples[2 * s + ch];
+        }
+    }
+
+    try {
+        // unclear what errors this can throw
+        breakfastquay::MiniBPM estimator(samplerate);
+        bpm = estimator.estimateTempoOfSamples(monoSamples.data(), framesRead);
+        std::cout << "[AUDIO][BPM] Estimated " << *bpm << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "[AUDIO][BPM] Error: " << e.what() << std::endl;
+        bpm = std::nullopt;
+    }
 }

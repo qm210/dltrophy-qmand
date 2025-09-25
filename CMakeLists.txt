@@ -10,6 +10,12 @@ find_package(OpenGL REQUIRED)
 find_package(miniaudio CONFIG REQUIRED)
 find_package(mdns REQUIRED)
 
+# minibpm is not on conan
+add_library(minibpm STATIC
+        thirdparty/minibpm-1.0/src/MiniBpm.cpp
+        thirdparty/minibpm-1.0/src/MiniBpm.h
+)
+
 add_executable(${PROJECT_NAME}
         src/main.cpp
         src/QmandApp.cpp
@@ -24,6 +30,7 @@ target_sources(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
         thirdparty/
         thirdparty/glad/include
+        thirdparty/minibpm-1.0/src/
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
@@ -31,6 +38,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         glfw
         OpenGL::GL
         miniaudio::miniaudio
+        minibpm
         mdns::mdns
 )
 
