@@ -68,7 +68,6 @@ public:
     }
 
     ~UdpSender() {
-        std::cout << "[DEBUG] ~UdpSender() called, closing " << socke << std::endl;
         close();
     }
 
