@@ -7,5 +7,5 @@
 
 Config::Config(int argc, char **argv)
 {
-    // TODO parse arguments for fun and profit, or something
+    // could parse arguments for fun and profit
 }

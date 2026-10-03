@@ -26,6 +26,7 @@
 #include <chrono>
 #include "Config.h"
 #include "Packet.h"
+#include "TimingStuff.h"
 
 struct MdnsQuest {
     bool ongoing = false;
@@ -54,6 +55,7 @@ private:
     MdnsQuest mdnsQuest{};
     std::queue<Packet> queue;
     std::chrono::time_point<std::chrono::steady_clock> lastProcessedAt;
+    char idleMessage[100];
 
 public:
     std::string host;
@@ -65,6 +67,8 @@ public:
         host = config.wledHost;
         port = config.wledPort;
         open();
+
+        sprintf(idleMessage, "unusually quiet for a %s night...", TimingStuff::currentWeekday());
     }
 
     ~UdpSender() {
@@ -120,7 +124,11 @@ public:
 
     [[nodiscard]]
     const char* status() const {
-        return (mdnsQuest.ongoing ? mdnsQuest.status : error).c_str();
+        if (isClosed()) {
+            return (mdnsQuest.ongoing ? mdnsQuest.status : error).c_str();
+        } else {
+            return idleMessage;
+        }
     }
 
     [[nodiscard]]

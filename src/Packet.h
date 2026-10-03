@@ -83,12 +83,12 @@ struct DeadlineWledPacket {
     uint8_t doReset;
     uint8_t applyBrightness;
     uint8_t brightness;
+    uint8_t applySegmentOpacity;
+    uint8_t segmentOpacity;
     uint8_t applyFxIndex;
     uint8_t fxIndex;
     uint8_t applyFxSpeed;
     uint8_t fxSpeed;
-    uint8_t unused1 = 0;
-    uint8_t unused2 = 0;
     uint8_t version = 210;
     uint8_t subversion = 0;
 };
@@ -99,11 +99,12 @@ const std::map<int, std::string> byteDescriptionDeadline = {
         {2, "Flag: Reset Strip?"},
         {3, "Flag: Apply Master Brightness?"},
         {4, "Master Brightness"},
-        {5, "Flag: Apply FX Index?"},
-        {6, "FX Index"},
-        {7, "Flag: Apply FX Speed?"},
-        {8, "FX Speed"},
-        // 9 and 10 currently unused
+        {5, "Flag: Apply Segment Opacity? (0 = off, 2^<n> for nth Segment, 255 = all)"},
+        {6, "FX Intensity"},
+        {7, "Flag: Apply FX Index? (0 = off, 2^<n> for nth Segment, 255 = all)"},
+        {8, "FX Index"},
+        {9, "Flag: Apply FX Speed? (0 = off, 2^<n> for nth Segment, 255 = all)"},
+        {10, "FX Speed"},
         {11, "Version Byte (must be 210)"},
         {12, "Deadline SubVersion Byte (is just 0 for now)"},
 };

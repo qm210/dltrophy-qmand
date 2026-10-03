@@ -20,11 +20,14 @@ private:
     std::string deviceError;
     ma_decoder decoder;
     ma_device_config deviceConfig;
-    ma_device device;
+    ma_device device{};
     uint32_t bytesPerFrame = 0;
     uint64_t framesPlayed = 0;
+    uint64_t framesTotal = 0;
     bool playing = false;
     bool looping = true;
+
+    std::optional<float> estimatedBpm = std::nullopt;
 
     static void onAudioData(ma_device* pDevice, void* pOutput,
                             const void* pInput, ma_uint32 frameCount);
@@ -36,13 +39,11 @@ public:
     explicit AudioPlayer(const Config& config);
     ~AudioPlayer() { teardown(); }
 
-    void teardown(bool withDevice = true);
+    void teardown();
     void load(const std::string& filepath);
     void startPlayback(bool looping = true);
     void stopPlayback(bool rewind = true);
-
-    void trySomeAnalysis();
-    std::optional<double> bpm = std::nullopt;
+    void doSomeAnalysis();
 
     [[nodiscard]]
     bool hasLoaded(const std::string& filepath) const {
@@ -54,7 +55,19 @@ public:
     bool isPlaying() const { return playing; };
 
     [[nodiscard]]
-    int samplerate() const { return decoder.outputSampleRate; }
+    float samplerate() const { return static_cast<float>(decoder.outputSampleRate); }
+
+    [[nodiscard]]
+    float totalSeconds() const { return framesTotal / samplerate(); }
+
+    [[nodiscard]]
+    std::optional<float> bpm() const { return estimatedBpm; }
+
+    [[nodiscard]]
+    ma_device_state deviceState() const { return ma_device_get_state(&device); }
+
+    [[nodiscard]]
+    bool deviceInitialized() const { return deviceState() != ma_device_state_uninitialized; }
 
     [[nodiscard]]
     float playingSeconds() const {

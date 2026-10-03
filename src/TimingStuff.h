@@ -128,7 +128,7 @@ public:
     }
 
     [[nodiscard]]
-    static const char* formatted_now() {
+    static const char* formattedNow() {
         auto system_now = chrono::system_clock::now();
         std::time_t time = chrono::system_clock::to_time_t(system_now);
         // Note: localtime is not thread-safe, but right now I don't want to
@@ -141,6 +141,17 @@ public:
         std::strftime(buffer, 9, "%H:%M:%S", &tm);
         std::snprintf(buffer + 8, 8, ".%06d", static_cast<int>(microSec));
         return buffer;
+    }
+
+    static constexpr const char* weekday[] = {
+            "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
+    };
+
+    [[nodiscard]]
+    static const char* currentWeekday() {
+        time_t time = std::time(nullptr);
+        tm* timeinfo = std::localtime(&time);
+        return weekday[timeinfo->tm_wday];
     }
 };
 

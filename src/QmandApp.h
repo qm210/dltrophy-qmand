@@ -23,12 +23,14 @@ public:
     ~QmandApp();
 
     void run();
-    void qmand(bool theGoodOne = true);
+    void qmand(bool beVisible = true, bool doReset = true);
     int send(DeadlineWledPacket qmd);
 
 private:
     Config config;
     GLFWwindow* window;
+    const int initWidth = 500;
+    const int initHeight = 400;
     nk_glfw *glfw;
     nk_context *ctx;
     void initializeWindow();
@@ -42,6 +44,7 @@ private:
 
     void prepareQmands();
     DeadlineWledPacket preparedQmand;
+    DeadlineWledPacket preparedQmandNoReset;
     DeadlineWledPacket preparedDark;
 };
 

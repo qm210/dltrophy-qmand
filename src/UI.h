@@ -14,6 +14,7 @@
 #include <GLFW/glfw3.h>
 #include <string>
 #include <stdexcept>
+#include <iostream>
 
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -44,23 +45,29 @@ static nk_bool signed_int_filter(const struct nk_text_edit *edit, nk_rune unicod
     return unsigned_int_filter(edit, unicode);
 }
 
-static bool string_edit(nk_context *ctx, std::string &value, size_t max_len, nk_flags flags = NK_EDIT_DEFAULT)
+// the nk_edit_events do not cover this and these go to 2^4 only.
+const int EDIT_VALUE_HAS_CHANGED = NK_FLAG(5);
+
+static nk_flags string_edit(nk_context *ctx, std::string &value, size_t max_len, nk_flags flags = NK_EDIT_DEFAULT)
 {
     if (max_len > 1024) {
         throw std::runtime_error("string_edit() currently only has 1024 buffer, change it");
     }
-    bool changed = false;
     char buffer[1024];
     int len;
     strncpy(buffer, value.c_str(), sizeof(buffer) - 1);
     buffer[sizeof(buffer) - 1] = '\0';
     len = strlen(buffer);
-    if (nk_edit_string(ctx, NK_EDIT_FIELD | flags, buffer, &len, max_len, nk_filter_default)) {
-        std::string newValue = std::string(buffer, len);
-        changed = value != newValue;
-        value = newValue;
+    nk_flags result = nk_edit_string(ctx, NK_EDIT_FIELD | flags,
+                                     buffer, &len, max_len,
+                                     nk_filter_default);
+    // the (IN)ACTIVE events are the opposite of useful to me. what the... these are not "events", even.
+    result &= ~NK_EDIT_INACTIVE & ~NK_EDIT_ACTIVE;
+    if (std::string_view(buffer, len) != std::string_view(value)) {
+        result |= EDIT_VALUE_HAS_CHANGED;
+        value = std::string(buffer, len);
     }
-    return changed;
+    return result;
 }
 
 template <typename T>

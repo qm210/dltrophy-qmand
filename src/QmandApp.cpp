@@ -41,7 +41,7 @@ void QmandApp::initializeWindow() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     glfwSetErrorCallback(handleWindowError);
-    window = glfwCreateWindow(500, 360, "Trophy Qmander", NULL, NULL);
+    window = glfwCreateWindow(initWidth, initHeight, "Trophy Qmander", NULL, NULL);
     if (!window) {
         glfwTerminate();
         throw std::runtime_error("Failed to open GLFW window");
@@ -69,9 +69,10 @@ void QmandApp::run() {
 
         nk_glfw3_new_frame(glfw);
         auto rect = nk_rect(0, 0, size.width, size.height);
-        int rowHeight = 0;
+        float rowHeight = 0;
         bool qmandChanged = false;
-        bool hostChanged = false;
+        bool hostEdited = false;
+        nk_flags edited = 0;
 
         if (nk_begin(ctx, "", rect, nk_window_flags)) {
 
@@ -82,18 +83,13 @@ void QmandApp::run() {
 
             rowHeight = 4 * unit;
             nk_layout_row_dynamic(ctx, rowHeight, 2);
-            hostChanged |=
-                    string_edit(ctx, config.wledHost, 32);
-            hostChanged |=
-                    int_edit(ctx, config.wledPort);
-
+            edited = string_edit(ctx, config.wledHost, 32);
+            hostEdited |= edited & NK_EDIT_DEACTIVATED;
+            edited = int_edit(ctx, config.wledPort);
+            hostEdited |= edited & NK_EDIT_DEACTIVATED;
             rowHeight = 3 * unit;
             nk_layout_row_dynamic(ctx, rowHeight, 1);
-            if (sender->isClosed()) {
-                nk_label(ctx, sender->status(), NK_TEXT_CENTERED);
-            } else {
-                nk_label(ctx, "unusually quiet for a Friday night...", NK_TEXT_CENTERED);
-            }
+            nk_label(ctx, sender->status(), NK_TEXT_CENTERED);
 
             rowHeight = 5 * unit;
             sprintf(text, "Brightness: %d", config.brightness);
@@ -101,6 +97,11 @@ void QmandApp::run() {
                     parameterWithCheckboxRow(ctx, rowHeight, text,
                                              config.applyBrightness,
                                              config.brightness);
+            sprintf(text, "Seg Opacity: %d", config.segmentOpacity);
+            qmandChanged |=
+                    parameterWithCheckboxRow(ctx, rowHeight, text,
+                                             config.applySegmentOpacity,
+                                             config.segmentOpacity);
             sprintf(text, "FX Index: %d", config.fxIndex);
             qmandChanged |=
                     parameterWithCheckboxRow(ctx, rowHeight, text,
@@ -114,12 +115,15 @@ void QmandApp::run() {
             nk_layout_row_dynamic(ctx, unit, 1);
 
             rowHeight = 5 * unit;
-            nk_layout_row_dynamic(ctx, rowHeight, 2);
+            nk_layout_row_dynamic(ctx, rowHeight, 3);
             if (nk_button_label(ctx, "dark.")) {
-                qmand(false);
+                qmand(false, false);
             }
-            if (nk_button_label(ctx, "!QMAND!")) {
-                qmand(true);
+            if (nk_button_label(ctx, "QMAND & Reset")) {
+                qmand(true, true);
+            }
+            if (nk_button_label(ctx, "QMAND w/o Reset")) {
+                qmand(true, false);
             }
 
             rowHeight = unit;
@@ -151,9 +155,10 @@ void QmandApp::run() {
             }
             nk_layout_row_end(ctx);
 
+            rowHeight = 3 * unit;
             nk_layout_row_dynamic(ctx, rowHeight, 1);
-            if (audio->bpm.has_value()) {
-                sprintf(text, "Estimated BPM: %.3f", *audio->bpm);
+            if (audio->bpm()) {
+                sprintf(text, "Track Length %.2f sec, BPM ~ %.2f", audio->totalSeconds(), *audio->bpm());
                 nk_label(ctx, text, NK_TEXT_RIGHT);
             }
 
@@ -184,11 +189,8 @@ void QmandApp::run() {
         if (qmandChanged) {
             prepareQmands();
         }
-        if (hostChanged) {
-            timer->startMeasurement("updating");
+        if (hostEdited) {
             sender->update(config);
-            auto timing = timer->finishMeasurement("updating");
-            std::cout << "[bla] updating has cost us: " << timing << std::endl;
         }
     }
 
@@ -201,15 +203,20 @@ void QmandApp::handleWindowError(int error, const char* description) {
     std::cerr << "Error: " << description << " (" << error << ")" << std::endl;
 }
 
-void QmandApp::qmand(bool theGoodOne) {
+void QmandApp::qmand(bool beVisible, bool doReset) {
     int sent;
+    auto thePacket = !beVisible
+            ? preparedDark
+            : doReset
+            ? preparedQmand
+            : preparedQmandNoReset;
     try {
-        sent = send(theGoodOne ? preparedQmand : preparedDark);
+        sent = send(thePacket);
     } catch (const std::exception& e) {
         std::cerr << "[ERROR] when sending UDP: " << e.what() << std::endl;
     }
     if (config.autoplay) {
-        if (!theGoodOne) {
+        if (!beVisible) {
             audio->stopPlayback();
             return;
         }
@@ -244,14 +251,18 @@ void QmandApp::prepareQmands() {
         .doReset = 1,
         .applyBrightness = static_cast<uint8_t>(config.applyBrightness),
         .brightness = config.brightness,
-        .applyFxIndex = static_cast<uint8_t>(config.applyFxIndex),
+        .applySegmentOpacity = static_cast<uint8_t>(config.applySegmentOpacity ? 15 : 0),
+        .segmentOpacity = config.segmentOpacity,
+        .applyFxIndex = static_cast<uint8_t>(config.applyFxIndex ? 15 : 0),
         .fxIndex = config.fxIndex,
-        .applyFxSpeed = static_cast<uint8_t>(config.applyFxSpeed),
+        .applyFxSpeed = static_cast<uint8_t>(config.applyFxSpeed ? 15 : 0),
         .fxSpeed = config.fxSpeed,
         .version = 210,
         .subversion = 0,
     };
     // has default copy constructor
+    preparedQmandNoReset = preparedQmand;
+    preparedQmandNoReset.doReset = 0;
     preparedDark = preparedQmand;
     preparedDark.brightness = 0;
 }
